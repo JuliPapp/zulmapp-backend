@@ -8,12 +8,12 @@ const PORT = process.env.PORT || 3000;
 
 // Configuración de menú (igual que en Apps Script)
 const MENU_ITEMS = [
-  'Tarta individual de jamón y queso',
-  'Tarta individual capresse',
-  'Tarta individual de brócoli',
-  'Tarta individual de zapallito',
-  'Tarta individual de pollo',
-  'Tarta individual de calabaza',
+  'Tarta - jamón y queso',
+  'Tarta - capresse',
+  'Tarta - brócoli',
+  'Tarta - zapallito',
+  'Tarta - pollo',
+  'Tarta - calabaza',
   'Tortilla de papa',
   'Pastel de papa',
   'Ensalada César',
