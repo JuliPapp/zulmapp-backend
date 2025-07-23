@@ -6,7 +6,7 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Configuración de menú (igual que en Apps Script)
+// Configuración de menú
 const MENU_ITEMS = [
   'Tarta - jamón y queso',
   'Tarta - capresse',
@@ -17,7 +17,7 @@ const MENU_ITEMS = [
   'Tortilla de papa',
   'Pastel de papa',
   'Ensalada César',
-  'Ensalada completa',
+  'Ensalada Completa',
   'Fideos con bolognesa',
   'Fideos con salsa de tomate',
 ];
@@ -44,7 +44,6 @@ const verifyAuth = async (req, res, next) => {
 
   try {
     const { data: { user }, error } = await supabase.auth.getUser(token);
-    
     if (error || !user) {
       return res.status(401).json({ success: false, message: 'Token inválido' });
     }
@@ -56,49 +55,77 @@ const verifyAuth = async (req, res, next) => {
   }
 };
 
-// Función para verificar horarios (igual que Apps Script)
+// Lista de administradores (puede configurarse por variable de entorno ADMIN_EMAILS, separada por comas)
+const ADMIN_EMAILS = process.env.ADMIN_EMAILS
+  ? process.env.ADMIN_EMAILS.split(',').map((e) => e.trim())
+  : [
+      'juliandanielpappalettera@gmail.com',
+      'leandro.binetti@gmail.com',
+      'alanpablomarino@gmail.com',
+    ];
+
+/**
+ * Obtiene la hora actual en Buenos Aires.
+ */
+const getArgTime = () => {
+  const now = new Date();
+  return new Date(
+    now.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }),
+  );
+};
+
+/**
+ * Calcula la “fecha de ciclo”.  Si la hora es ≥14:00, pertenece al día siguiente; de lo contrario, al día actual.
+ */
+const getCycleDate = (argTime) => {
+  const hour = argTime.getHours();
+  if (hour >= 14) {
+    const tomorrow = new Date(argTime);
+    tomorrow.setDate(argTime.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  }
+  return argTime.toISOString().split('T')[0];
+};
+
+/**
+ * Verifica si las operaciones están permitidas según el horario y día de la semana.
+ * Permite pedidos de lunes a viernes desde las 14:00 hasta las 10:15 del día siguiente.
+ * Los administradores siempre tienen acceso.
+ */
 const checkTimeRestriction = (userEmail) => {
-  const adminEmail = "juliandanielpappalettera@gmail.com";
-  
-  // Si es admin, siempre tiene acceso
-  if (userEmail === adminEmail) {
+  // Administradores siempre tienen acceso
+  if (ADMIN_EMAILS.includes(userEmail)) {
     return { allowed: true, isAdmin: true };
   }
-  
-  const now = new Date();
-  // Convertir a horario de Argentina
-  const argTime = new Date(now.toLocaleString("en-US", {timeZone: "America/Argentina/Buenos_Aires"}));
-  
-  const dayOfWeek = argTime.getDay(); // 0=domingo, 1=lunes, ..., 6=sábado
+  const argTime = getArgTime();
+  const dayOfWeek = argTime.getDay();
   const hour = argTime.getHours();
   const minute = argTime.getMinutes();
-  
-  const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5; // Lunes a viernes
-  const isInTimeRange = (hour === 7 || hour === 8 || hour === 9) || 
-                       (hour === 10 && minute <= 15); // 7:00 a 10:15
-  
+  const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5; // lunes a viernes
+  // Permitir si la hora es >=14:00 o <=10:15
+  const isInTimeRange =
+    hour >= 14 || hour < 10 || (hour === 10 && minute <= 15);
   return { allowed: isWeekday && isInTimeRange, isAdmin: false };
 };
 
 // Función para calcular números de platos
 const calculateDishNumbers = async (userEmail) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
-    
-    // Obtener todos los pedidos del día ordenados por timestamp
+    // Calcular la fecha del ciclo actual
+    const argTime = getArgTime();
+    const cycleDate = getCycleDate(argTime);
+    // Obtener todos los pedidos del ciclo ordenados por timestamp
     const { data: pedidos, error } = await supabase
       .from('pedidos')
       .select('*')
-      .eq('fecha', today)
+      .eq('fecha', cycleDate)
       .order('timestamp', { ascending: true });
 
     if (error) throw error;
 
     const allDishes = [];
-    
     // Procesar todos los pedidos para obtener orden cronológico
     pedidos.forEach(pedido => {
-      // Agregar cada plato del pedido a la lista general
       [pedido.plato1, pedido.plato2, pedido.plato3].forEach(plato => {
         if (plato && plato.trim() !== '') {
           allDishes.push({
@@ -143,7 +170,7 @@ app.post('/api/pedidos', verifyAuth, async (req, res) => {
     if (!timeCheck.allowed) {
       return res.status(403).json({
         success: false,
-        message: 'La app solo está disponible de lunes a viernes de 7:00 a 10:15 AM'
+        message: 'La app solo está disponible de lunes a viernes de 14:00 a 10:15'
       });
     }
 
@@ -162,14 +189,16 @@ app.post('/api/pedidos', verifyAuth, async (req, res) => {
       });
     }
 
-    const today = new Date().toISOString().split('T')[0];
-    
-    // Verificar si ya existe un pedido del usuario hoy
+    // Calcular fecha de ciclo
+    const argTime = getArgTime();
+    const cycleDate = getCycleDate(argTime);
+
+    // Verificar si ya existe un pedido del usuario en este ciclo
     const { data: existingOrder } = await supabase
       .from('pedidos')
       .select('*')
       .eq('email', userEmail)
-      .eq('fecha', today)
+      .eq('fecha', cycleDate)
       .single();
 
     const orderData = {
@@ -179,20 +208,17 @@ app.post('/api/pedidos', verifyAuth, async (req, res) => {
       plato1: plato1 || '',
       plato2: plato2 || '',
       plato3: plato3 || '',
-      fecha: today,
-      timestamp: new Date().toISOString()
+      fecha: cycleDate,
+      timestamp: new Date().toISOString(),
     };
 
-    let result;
     let action;
-
     if (existingOrder) {
       // Actualizar pedido existente
       const { error } = await supabase
         .from('pedidos')
         .update(orderData)
         .eq('id', existingOrder.id);
-
       if (error) throw error;
       action = 'updated';
     } else {
@@ -200,7 +226,6 @@ app.post('/api/pedidos', verifyAuth, async (req, res) => {
       const { error } = await supabase
         .from('pedidos')
         .insert([orderData]);
-
       if (error) throw error;
       action = 'created';
     }
@@ -208,14 +233,14 @@ app.post('/api/pedidos', verifyAuth, async (req, res) => {
     // Calcular números de platos
     const dishNumbers = await calculateDishNumbers(userEmail);
 
-    let message = action === 'updated' ? 'Pedido actualizado correctamente' : 'Pedido registrado correctamente';
+    let message = action === 'updated'
+      ? 'Pedido actualizado correctamente'
+      : 'Pedido registrado correctamente';
     
     if (dishNumbers.length > 0) {
-      if (dishNumbers.length === 1) {
-        message += `. Tu plato es el número ${dishNumbers[0]}`;
-      } else {
-        message += `. Tus platos son los números ${dishNumbers.join(', ')}`;
-      }
+      message += dishNumbers.length === 1
+        ? `. Tu plato es el número ${dishNumbers[0]}`
+        : `. Tus platos son los números ${dishNumbers.join(', ')}`;
     }
 
     res.json({
@@ -239,20 +264,21 @@ app.post('/api/pedidos', verifyAuth, async (req, res) => {
 app.get('/api/pedidos/current', verifyAuth, async (req, res) => {
   try {
     const userEmail = req.user.email;
-    const today = new Date().toISOString().split('T')[0];
+    // Fecha de ciclo
+    const argTime = getArgTime();
+    const cycleDate = getCycleDate(argTime);
 
     const { data: order, error } = await supabase
       .from('pedidos')
       .select('*')
       .eq('email', userEmail)
-      .eq('fecha', today)
+      .eq('fecha', cycleDate)
       .single();
 
     if (error && error.code !== 'PGRST116') throw error;
 
     if (order) {
       const dishNumbers = await calculateDishNumbers(userEmail);
-      
       res.json({
         success: true,
         order: {
@@ -266,7 +292,6 @@ app.get('/api/pedidos/current', verifyAuth, async (req, res) => {
     } else {
       res.json({ success: true, order: null });
     }
-
   } catch (error) {
     console.error('Error obteniendo pedido actual:', error);
     res.status(500).json({
@@ -276,15 +301,17 @@ app.get('/api/pedidos/current', verifyAuth, async (req, res) => {
   }
 });
 
-// Obtener estadísticas del día
+// Obtener estadísticas del ciclo
 app.get('/api/stats', verifyAuth, async (req, res) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    // Fecha de ciclo
+    const argTime = getArgTime();
+    const cycleDate = getCycleDate(argTime);
 
     const { data: pedidos, error } = await supabase
       .from('pedidos')
       .select('*')
-      .eq('fecha', today)
+      .eq('fecha', cycleDate)
       .order('timestamp', { ascending: true });
 
     if (error) throw error;
@@ -297,14 +324,12 @@ app.get('/api/stats', verifyAuth, async (req, res) => {
 
     // Procesar estadísticas
     pedidos.forEach(pedido => {
-      // Agregar persona a la lista
       stats.peopleList.push({
         nombre: pedido.nombre,
         usuario: pedido.usuario,
         timestamp: pedido.timestamp
       });
 
-      // Contar platos
       [pedido.plato1, pedido.plato2, pedido.plato3].forEach(plato => {
         if (plato && plato.trim() !== '') {
           stats.menuStats[plato] = (stats.menuStats[plato] || 0) + 1;
@@ -328,14 +353,16 @@ app.get('/api/stats', verifyAuth, async (req, res) => {
 app.delete('/api/pedidos/current', verifyAuth, async (req, res) => {
   try {
     const userEmail = req.user.email;
-    const today = new Date().toISOString().split('T')[0];
+    // Fecha de ciclo
+    const argTime = getArgTime();
+    const cycleDate = getCycleDate(argTime);
 
     // Verificar horarios
     const timeCheck = checkTimeRestriction(userEmail);
     if (!timeCheck.allowed) {
       return res.status(403).json({
         success: false,
-        message: 'La app solo está disponible de lunes a viernes de 7:00 a 10:15 AM'
+        message: 'La app solo está disponible de lunes a viernes de 14:00 a 10:15'
       });
     }
 
@@ -343,7 +370,7 @@ app.delete('/api/pedidos/current', verifyAuth, async (req, res) => {
       .from('pedidos')
       .delete()
       .eq('email', userEmail)
-      .eq('fecha', today);
+      .eq('fecha', cycleDate);
 
     if (error) throw error;
 
