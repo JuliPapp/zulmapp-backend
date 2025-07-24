@@ -75,15 +75,48 @@ const getArgTime = () => {
 };
 
 /**
- * Calcula la "fecha de ciclo".  Si la hora es ≥14:00, pertenece al día siguiente; de lo contrario, al día actual.
+ * Calcula la "fecha de ciclo" con lógica especial para fines de semana.
+ * - Viernes >= 14:00 hasta Lunes <= 10:15 = pedidos para el LUNES
+ * - Resto de la semana: >= 14:00 = día siguiente, <= 10:15 = mismo día
  */
 const getCycleDate = (argTime) => {
   const hour = argTime.getHours();
+  const minute = argTime.getMinutes();
+  const day = argTime.getDay(); // 0=Dom, 1=Lun, ..., 5=Vie, 6=Sáb
+  
+  // Viernes >= 14:00 → pedidos para el LUNES
+  if (day === 5 && hour >= 14) {
+    const lunes = new Date(argTime);
+    lunes.setDate(argTime.getDate() + 3); // Viernes + 3 días = Lunes
+    return lunes.toISOString().split('T')[0];
+  }
+  
+  // Sábado (todo el día) → pedidos para el LUNES
+  if (day === 6) {
+    const lunes = new Date(argTime);
+    lunes.setDate(argTime.getDate() + 2); // Sábado + 2 días = Lunes
+    return lunes.toISOString().split('T')[0];
+  }
+  
+  // Domingo (todo el día) → pedidos para el LUNES
+  if (day === 0) {
+    const lunes = new Date(argTime);
+    lunes.setDate(argTime.getDate() + 1); // Domingo + 1 día = Lunes
+    return lunes.toISOString().split('T')[0];
+  }
+  
+  // Lunes <= 10:15 → pedidos para el LUNES (mismo día)
+  if (day === 1 && (hour < 10 || (hour === 10 && minute <= 15))) {
+    return argTime.toISOString().split('T')[0];
+  }
+  
+  // Lógica normal para Lunes-Jueves
   if (hour >= 14) {
     const tomorrow = new Date(argTime);
     tomorrow.setDate(argTime.getDate() + 1);
     return tomorrow.toISOString().split('T')[0];
   }
+  
   return argTime.toISOString().split('T')[0];
 };
 
