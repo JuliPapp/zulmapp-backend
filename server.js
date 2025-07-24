@@ -75,7 +75,7 @@ const getArgTime = () => {
 };
 
 /**
- * Calcula la “fecha de ciclo”.  Si la hora es ≥14:00, pertenece al día siguiente; de lo contrario, al día actual.
+ * Calcula la "fecha de ciclo".  Si la hora es ≥14:00, pertenece al día siguiente; de lo contrario, al día actual.
  */
 const getCycleDate = (argTime) => {
   const hour = argTime.getHours();
@@ -209,7 +209,7 @@ app.post('/api/pedidos', verifyAuth, async (req, res) => {
       plato2: plato2 || '',
       plato3: plato3 || '',
       fecha: cycleDate,
-      timestamp: new Date().toISOString(),
+      timestamp: getArgTime().toISOString(), // ✅ CORREGIDO: Usa timezone de Argentina
     };
 
     let action;
@@ -324,10 +324,14 @@ app.get('/api/stats', verifyAuth, async (req, res) => {
 
     // Procesar estadísticas
     pedidos.forEach(pedido => {
+      // ✅ CORREGIDO: Incluir platos en peopleList
       stats.peopleList.push({
         nombre: pedido.nombre,
         usuario: pedido.usuario,
-        timestamp: pedido.timestamp
+        timestamp: pedido.timestamp,
+        plato1: pedido.plato1,
+        plato2: pedido.plato2,
+        plato3: pedido.plato3
       });
 
       [pedido.plato1, pedido.plato2, pedido.plato3].forEach(plato => {
