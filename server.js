@@ -8,12 +8,12 @@ const PORT = process.env.PORT || 3000;
 
 // Configuración de menú
 const MENU_ITEMS = [
-  'Tarta - jamón y queso',
-  'Tarta - capresse',
-  'Tarta - brócoli',
-  'Tarta - zapallito',
-  'Tarta - pollo',
-  'Tarta - calabaza',
+  'Tarta jamón y queso',
+  'Tarta capresse',
+  'Tarta brócoli',
+  'Tarta zapallito',
+  'Tarta pollo',
+  'Tarta calabaza',
   'Tortilla de papa',
   'Pastel de papa',
   'Ensalada César',
