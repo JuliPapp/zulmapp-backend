@@ -242,12 +242,12 @@ app.post('/api/pedidos', verifyAuth, async (req, res) => {
       plato2: plato2 || '',
       plato3: plato3 || '',
       fecha: cycleDate,
-      timestamp: getArgTime().toISOString(), // ✅ CORREGIDO: Usa timezone de Argentina
     };
 
     let action;
     if (existingOrder) {
-      // Actualizar pedido existente
+      // Actualizar pedido existente - MANTENER timestamp original
+      orderData.timestamp = existingOrder.timestamp; // ✅ CORREGIDO: Preservar timestamp original
       const { error } = await supabase
         .from('pedidos')
         .update(orderData)
@@ -255,7 +255,8 @@ app.post('/api/pedidos', verifyAuth, async (req, res) => {
       if (error) throw error;
       action = 'updated';
     } else {
-      // Crear nuevo pedido
+      // Crear nuevo pedido - NUEVO timestamp
+      orderData.timestamp = getArgTime().toISOString(); // ✅ Solo para pedidos nuevos
       const { error } = await supabase
         .from('pedidos')
         .insert([orderData]);
