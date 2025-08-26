@@ -8,6 +8,7 @@ const PORT = process.env.PORT || 3000;
 
 // Configuración de menú
 const MENU_ITEMS = [
+  'filet de merluza con puré'
   'Tarta JyQ',
   'Tarta capresse',
   'Tarta brócoli',
